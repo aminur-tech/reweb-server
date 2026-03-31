@@ -9,5 +9,7 @@ export default {
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS || 12,
   jwt_secret: process.env.JWT_SECRET,
   jwt_expires_in: process.env.JWT_EXPIRES_IN,
-  gemini_api_key: process.env.GEMINI_API_KEY,
+  openai_api_key: process.env.OPENAI_API_KEY,
+  email_user: process.env.EMAIL_USER,
+  email_pass: process.env.EMAIL_PASS,
 };

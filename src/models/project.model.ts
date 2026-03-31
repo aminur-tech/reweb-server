@@ -3,7 +3,9 @@ import { IProject, IReview } from '../types/project.interface';
 
 const ReviewSchema = new Schema<IReview>({
   user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  email: { type: String, required: true },
   userName: { type: String, required: true },
+  image: { type: String },
   rating: { type: Number, required: true, min: 1, max: 5 },
   comment: { type: String, required: true },
 }, { timestamps: true });
