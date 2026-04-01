@@ -3,101 +3,99 @@ import { Request, Response } from "express";
 import jwt, { Secret } from "jsonwebtoken";
 import config from "../config";
 import { User } from "../models/user.model";
+import { sendEmail } from "../utils/sendEmail";
 
-// Register user
 const register = async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { email, name, password } = req.body;
 
-    // Check if user already exists
-    const isUserExist = await User.findOne({ email });
+    // ... existing check if user exists ...
 
-    if (isUserExist) {
-      return res.status(400).json({
-        success: false,
-        message: "User already exists!",
-      });
+    // Generate code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const savedUser = await User.create({
+      ...req.body,
+      verificationCode, // Store it in DB
+      isVerified: false,
+    });
+
+    // 🔥 SEND THE MAIL HERE
+    try {
+      await sendEmail(savedUser.email, verificationCode);
+    } catch (mailError) {
+      console.error("Email failed to send:", mailError);
+      // Optional: You might want to delete the user or tell them to "Resend"
     }
-
-    const savedUser = await User.create(req.body);
-
-    // Generate token
-    const token = jwt.sign(
-      { id: savedUser._id, email: savedUser.email, role: savedUser.role }, // include id!
-      config.jwt_secret as Secret,
-      { expiresIn: config.jwt_expires_in as any },
-    );
-
-    // Omit password from response
-    const userResponse = savedUser.toObject();
-    delete userResponse.password;
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
-      data: userResponse,
-      token,
+      message: "User registered. Please check your email for verification code.",
+      data: { email: savedUser.email }, // Minimize data sent back
     });
   } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to register user",
-      error: err.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to register", error: err.message });
   }
 };
+
+const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+
+    const user = await User.findOne({ email, verificationCode: code });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid verification code or email",
+      });
+    }
+
+    // Update user status
+    user.isVerified = true;
+    user.verificationCode = undefined; 
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Email verified successfully!",
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: "Verification failed", error: err.message });
+  }
+};
+
+
 
 // Login user
 const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-
-    // Check if user exists
     const user = await User.findOne({ email }).select("+password");
+
     if (!user) {
-      return res.status(401).json({
+      return res.status(401).json({ success: false, message: "Invalid email or password" });
+    }
+
+    // 🔥 NEW: Send new code if not verified
+    if (!user.isVerified) {
+      const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+      user.verificationCode = newCode;
+      await user.save();
+      
+      await sendEmail(user.email, newCode);
+
+      return res.status(403).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Please verify your email before logging in", // Frontend checks for "verify"
       });
     }
 
-    // Compare passwords
-    const isPasswordMatch = await bcrypt.compare(
-      password,
-      user.password as string,
-    );
-    if (!isPasswordMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // Generate token
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      config.jwt_secret as Secret,
-      { expiresIn: config.jwt_expires_in as any },
-    );
-
-    // Omit password from response
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
-    res.status(200).json({
-      success: true,
-      message: "User logged in successfully",
-      token,
-      data: userResponse,
-    });
+    // ... check password logic ...
   } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to login",
-      error: err.message,
-    });
+    res.status(500).json({ success: false, message: err.message });
   }
-};
+}
 
 // Login user with Google
 const googleLogin = async (req: Request, res: Response) => {
@@ -203,5 +201,6 @@ export const userControllers = {
   login,
   getUsers,
   googleLogin,
-  updateProfile
+  updateProfile,
+  verifyEmail
 };

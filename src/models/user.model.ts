@@ -8,7 +8,9 @@ const userSchema = new Schema<IUser>(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true, select: false },
-    image: { type: String },
+    profileImg: { type: String },
+    isVerified: { type: Boolean, default: false },
+    verificationCode: { type: String },
     role: {
       type: String,
       enum: ['admin', 'client', 'collaborator'],

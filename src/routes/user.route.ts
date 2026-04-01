@@ -6,6 +6,8 @@ const router = express.Router();
 
 // Register user
 router.post('/register', userControllers.register);
+// Verify email
+router.post('/verify-email', userControllers.verifyEmail);
 // Login user
 router.post('/login', userControllers.login);
 // Google Login user
