@@ -13,8 +13,8 @@ const sendContactEmail = async (req: Request, res: Response) => {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS, // Use App Password
+        user: process.env.EMAIL_USER as string,
+        pass: process.env.EMAIL_PASS as string, // Use App Password
       },
     });
 
@@ -35,7 +35,7 @@ const sendContactEmail = async (req: Request, res: Response) => {
     // 4. Send Email
     await transporter.sendMail({
       from: `"${name}" <${email}>`,
-      to: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER as string,
       subject: `🚀 New Inquiry: ${service} from ${name}`,
       html: htmlContent,
     });

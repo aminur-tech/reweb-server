@@ -33,8 +33,8 @@ userSchema.pre('save', async function () {
 
   try {
     user.password = await bcrypt.hash(
-      user.password as string,
-      Number(config.bcrypt_salt_rounds)
+      user.password as string, // Assert user.password as string
+      Number(config.bcrypt_salt_rounds as string) // Assert config.bcrypt_salt_rounds as string
     );
   } catch (error) {
     throw error;

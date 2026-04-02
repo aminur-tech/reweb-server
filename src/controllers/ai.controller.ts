@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import config from '../config'; //
 import { IChatMessage } from '../types/ai.interface';
 
-const openai = new OpenAI({ apiKey: config.openai_api_key });
+const openai = new OpenAI({ apiKey: config.openai_api_key as string });
 
 export const consultService = async (req: Request, res: Response) => {
   try {

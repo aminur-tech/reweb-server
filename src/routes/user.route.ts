@@ -10,6 +10,10 @@ router.post('/register', userControllers.register);
 router.post('/verify-email', userControllers.verifyEmail);
 // Login user
 router.post('/login', userControllers.login);
+// Forgot password
+router.post('/forgot-password', userControllers.forgotPassword);
+// Reset password   
+router.post('/reset-password', userControllers.resetPassword);
 // Google Login user
 router.post('/google', userControllers.googleLogin);
 // Get all users
