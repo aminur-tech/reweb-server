@@ -195,30 +195,35 @@ const resetPassword = async (req: Request, res: Response) => {
 // Login user with Google
 const googleLogin = async (req: Request, res: Response) => {
   try {
-    const { email, name, image } = req.body; // Ensure 'image' is sent from the frontend
+    let { email, name, image } = req.body;
+
+    // ✅ FIX: fallback name
+    if (!name) {
+      name = email.split("@")[0]; // fallback নাম
+    }
 
     let user = await User.findOne({ email });
 
     if (!user) {
-      // If user doesn't exist, create them as already verified
       const randomPassword = Math.random().toString(36).slice(-8);
+
       user = await User.create({
         email,
         name,
         password: randomPassword,
-        profileImg: image, // Map Google's image to profileImg
-        isVerified: true, // Google users are pre-verified
+        profileImg: image,
+        isVerified: true,
         role: "client",
       });
     } else {
-      // If user exists, update their photo and verification status
-      // (in case they previously registered via email but hadn't verified)
       user.isVerified = true;
+
       if (image) user.profileImg = image;
+      if (name) user.name = name;
+
       await user.save();
     }
 
-    // Generate token
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       config.jwt_secret as Secret,
@@ -230,7 +235,6 @@ const googleLogin = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: "User logged in successfully with Google",
       token,
       data: userResponse,
     });
