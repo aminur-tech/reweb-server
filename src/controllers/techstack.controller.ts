@@ -36,7 +36,7 @@ export const updateTechStack = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await TechStack.findByIdAndUpdate(id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     });
     res.status(200).json({

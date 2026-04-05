@@ -37,7 +37,7 @@ const getServices = async (req: Request, res: Response) => {
 const updateService = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const service = await Service.findByIdAndUpdate(id, req.body, { new: true });
+    const service = await Service.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
     res.status(200).json({ success: true, message: "Service updated", data: service });
   } catch (err: any) {
     res.status(500).json({ success: false, message: "Failed to update service", error: err.message });

@@ -17,6 +17,7 @@ const moduleRoutes = [
   { path: '/projects', route: ProjectRoutes },
   { path: '/contact', route: ContactRoutes },
   { path: '/ai', route: AIRoutes }
+ 
 
 ];
 

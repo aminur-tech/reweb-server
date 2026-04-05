@@ -22,7 +22,7 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// 🔐 PRE SAVE → HASH PASSWORD
+//  PRE SAVE → HASH PASSWORD
 userSchema.pre('save', async function () {
   const user = this as IUser;
 
@@ -41,18 +41,14 @@ userSchema.pre('save', async function () {
   }
 });
 
-// 🚫 REMOVE THIS (CAUSES ERROR)
-// userSchema.post('save', function (user, next) {
-//   user.password = '';
-//   next();
-// });
 
-// ✅ OPTIONAL (SAFE LOG ONLY)
+
+//SAFE LOG ONLY
 userSchema.post('save', function (doc) {
   console.log(`[User Created]: ${doc.email}`);
 });
 
-// ✅ BEST PRACTICE → METHOD TO HIDE PASSWORD
+//  METHOD TO HIDE PASSWORD
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;

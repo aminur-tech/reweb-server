@@ -6,7 +6,7 @@ import router from './routes';
 const app: Application = express();
 
 // Parsers
-app.use(express.json());
+app.use(express.json()); 
 app.use(cors());
 
 // Application routes

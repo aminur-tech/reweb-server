@@ -4,6 +4,8 @@ import jwt, { Secret } from "jsonwebtoken";
 import config from "../config";
 import { User } from "../models/user.model";
 import { sendEmail } from "../utils/sendEmail";
+import cloudinary from "../config/cloudinary";
+import streamifier from "streamifier";
 
 const register = async (req: Request, res: Response) => {
   try {
@@ -35,13 +37,11 @@ const register = async (req: Request, res: Response) => {
       data: { email: savedUser.email }, // Minimize data sent back
     });
   } catch (err: any) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to register",
-        error: err.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to register",
+      error: err.message,
+    });
   }
 };
 
@@ -68,13 +68,11 @@ const verifyEmail = async (req: Request, res: Response) => {
       message: "Email verified successfully!",
     });
   } catch (err: any) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Verification failed",
-        error: err.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Verification failed",
+      error: err.message,
+    });
   }
 };
 
@@ -147,18 +145,22 @@ const forgotPassword = async (req: Request, res: Response) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     // Generate a 6-digit reset code
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     user.verificationCode = resetCode; // Reusing this field
     await user.save();
 
     await sendEmail(email, `Your password reset code is: ${resetCode}`);
 
-    res.status(200).json({ success: true, message: "Reset code sent to email" });
+    res
+      .status(200)
+      .json({ success: true, message: "Reset code sent to email" });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -172,7 +174,9 @@ const resetPassword = async (req: Request, res: Response) => {
     const user = await User.findOne({ email, verificationCode: code });
 
     if (!user) {
-      return res.status(400).json({ success: false, message: "Invalid code or email" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid code or email" });
     }
 
     // Update password (the pre-save hook in your model will hash this automatically)
@@ -180,30 +184,38 @@ const resetPassword = async (req: Request, res: Response) => {
     user.verificationCode = undefined; // Clear the code
     await user.save();
 
-    res.status(200).json({ success: true, message: "Password reset successful" });
+    res
+      .status(200)
+      .json({ success: true, message: "Password reset successful" });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-
-
 // Login user with Google
 const googleLogin = async (req: Request, res: Response) => {
   try {
-    const { email, name } = req.body;
+    const { email, name, image } = req.body; // Ensure 'image' is sent from the frontend
 
     let user = await User.findOne({ email });
 
     if (!user) {
-      // generate a random one that won't be used for login.
+      // If user doesn't exist, create them as already verified
       const randomPassword = Math.random().toString(36).slice(-8);
       user = await User.create({
         email,
         name,
         password: randomPassword,
-        role: "client", 
+        profileImg: image, // Map Google's image to profileImg
+        isVerified: true, // Google users are pre-verified
+        role: "client",
       });
+    } else {
+      // If user exists, update their photo and verification status
+      // (in case they previously registered via email but hadn't verified)
+      user.isVerified = true;
+      if (image) user.profileImg = image;
+      await user.save();
     }
 
     // Generate token
@@ -213,7 +225,6 @@ const googleLogin = async (req: Request, res: Response) => {
       { expiresIn: config.jwt_expires_in as any },
     );
 
-    // Omit password from response
     const userResponse = user.toObject();
     delete userResponse.password;
 
@@ -250,36 +261,53 @@ const getUsers = async (req: Request, res: Response) => {
   }
 };
 
+
+// Helper function to upload image buffer to Cloudinary
+const streamUpload = (buffer: Buffer) => {
+  return new Promise<any>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "profiles" },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+
+    streamifier.createReadStream(buffer).pipe(stream);
+  });
+};
+
 const updateProfile = async (req: Request, res: Response) => {
   try {
-    // Assuming you have an auth middleware that puts user info in req.user
     const userId = (req as any).user.id;
-    const { name, image } = req.body;
+    const { name } = req.body;
+
+    let imageUrl;
+
+    // ✅ upload to cloudinary
+    if (req.file) {
+      const result = await streamUpload(req.file.buffer);
+      imageUrl = result.secure_url;
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { name, image },
-      { new: true, runValidators: true },
+      {
+        name,
+        ...(imageUrl && { profileImg: imageUrl }),
+      },
+      { returnDocument: 'after' }
     ).select("-password");
-
-    if (!updatedUser) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
 
     res.status(200).json({
       success: true,
-      message: "Profile updated successfully",
-      data: updatedUser,
+      data: {
+        name: updatedUser?.name,
+        image: updatedUser?.profileImg,
+      },
     });
   } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update profile",
-      error: err.message,
-    });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

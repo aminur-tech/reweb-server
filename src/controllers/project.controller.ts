@@ -36,7 +36,7 @@ const getProjectById = async (req: Request, res: Response) => {
 // Admin: Update Project
 const updateProject = async (req: Request, res: Response) => {
   try {
-    const updated = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updated = await Project.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     res.status(200).json({ success: true, data: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });

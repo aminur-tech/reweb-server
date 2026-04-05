@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { Secret } from "jsonwebtoken";
+import config from "../config";
 
 export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   // 1. Get token from header
@@ -46,17 +47,18 @@ export const isAuth = (req: Request, res: Response, next: NextFunction) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
+    // ✅ Change process.env.JWT_SECRET to config.jwt_secret
+    const decoded = jwt.verify(token, config.jwt_secret as Secret) as any;
 
-    // Attach user to request so the controller can use req.user.id
     (req as any).user = {
-      id: decoded.id || decoded._id, // Support both formats
+      id: decoded.id || decoded._id, 
       email: decoded.email,
       role: decoded.role
     };
 
     next();
   } catch (err) {
+    // This is where your 401 was being triggered
     return res.status(401).json({ success: false, message: "Token is invalid or expired." });
   }
 };
