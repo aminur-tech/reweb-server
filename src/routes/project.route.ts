@@ -1,5 +1,5 @@
 import express from 'express';
-import { projectControllers } from '../controllers/project.controller';
+import { projectControllers} from '../controllers/project.controller';
 import { isAdmin, isAuth } from '../middleware/auth';
 
 
@@ -16,5 +16,7 @@ router.post('/:id/review', isAuth, projectControllers.addReview);
 router.post('/create', isAdmin, projectControllers.createProject);
 router.patch('/:id', isAdmin, projectControllers.updateProject);
 router.delete('/:id', isAdmin, projectControllers.deleteProject);
+
+
 
 export const ProjectRoutes = router;

@@ -247,23 +247,7 @@ const googleLogin = async (req: Request, res: Response) => {
   }
 };
 
-// Get all users
-const getUsers = async (req: Request, res: Response) => {
-  try {
-    const users = await User.find().select("-password");
-    res.status(200).json({
-      success: true,
-      message: "Users fetched successfully",
-      data: users,
-    });
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch users",
-      error: err.message,
-    });
-  }
-};
+
 
 
 // Helper function to upload image buffer to Cloudinary
@@ -315,6 +299,29 @@ const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+// Get all users
+const getUsers = async (req: Request, res: Response) => {
+  try {
+    const users = await User.find().select("-password");
+    res.status(200).json({
+      success: true,
+      message: "Users fetched successfully",
+      data: users,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+      error: err.message,
+    });
+  }
+};
+
+const getCollaborators = async (req: Request, res: Response) => {
+  const specialists = await User.find({ role: 'collaborator' }).select('name email role');
+  res.json(specialists);
+}
+
 export const userControllers = {
   register,
   login,
@@ -324,4 +331,5 @@ export const userControllers = {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  getCollaborators
 };

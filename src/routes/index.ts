@@ -5,6 +5,7 @@ import { TechStackRoutes } from './techstack.route';
 import { ProjectRoutes } from './project.route';
 import { ContactRoutes } from './contact.route';
 import { AIRoutes } from './ai.route';
+import { TaskRoutes } from './task.route';
 
 
 const router = express.Router();
@@ -16,7 +17,8 @@ const moduleRoutes = [
   { path: '/techstack', route: TechStackRoutes},
   { path: '/projects', route: ProjectRoutes },
   { path: '/contact', route: ContactRoutes },
-  { path: '/ai', route: AIRoutes }
+  { path: '/ai', route: AIRoutes },
+  { path: '/tasks', route: TaskRoutes }
  
 
 ];

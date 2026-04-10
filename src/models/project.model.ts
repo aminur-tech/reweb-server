@@ -23,4 +23,6 @@ const ProjectSchema = new Schema<IProject>({
   averageRating: { type: Number, default: 0 }
 }, { timestamps: true });
 
+
+
 export const Project = model<IProject>('Project', ProjectSchema);

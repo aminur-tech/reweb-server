@@ -1,6 +1,6 @@
 import express from 'express';
 import { userControllers } from '../controllers/user.controller';
-import { isAuth } from '../middleware/auth';
+import { isAdmin, isAuth } from '../middleware/auth';
 import { upload } from '../middleware/multer';
 
 
@@ -22,6 +22,8 @@ router.post('/google', userControllers.googleLogin);
 router.get('/users', userControllers.getUsers);
 // Update user profile
 router.patch('/update-profile',isAuth, upload.single("image"), userControllers.updateProfile);
+
+router.get('/collaborators', isAdmin, userControllers.getCollaborators);
 
 
 export const UserRoutes = router;
