@@ -7,9 +7,15 @@ const router = Router();
 // client routes
 router.post('/', isAuth,upload.array('files'), TaskController.createTask);
 router.get('/my', isAuth, TaskController.getMyTasks);
-router.patch('/my/:id',upload.array("files"), isAuth, TaskController.updateTask);
 router.delete('/my/:id', isAuth, TaskController.deleteTask);
+router.post('/client/feedback/:id', isAuth, TaskController.giveFeedback);
 router.get('/analytics', isAuth, TaskController.getTaskAnalytics);
+
+// collaborator routes
+router.get('/collaborator/my-assignments', isAuth, TaskController.getCollaboratorTasks);
+router.patch('/collaborator/status/:id', isAuth, TaskController.updateStatus);
+router.delete('/collaborator/:id', isAuth, TaskController.deleteTask);
+router.post('/collaborator/submit/:id', isAuth, upload.array('files'), TaskController.submitTask);
 
 // admin routes
 router.get('/', isAdmin, TaskController.getAllTasks);

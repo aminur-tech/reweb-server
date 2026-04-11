@@ -5,42 +5,38 @@ import cloudinary from "../config/cloudinary"; // Your cloudinary file
 export const TaskController = {
   createTask: async (req: Request, res: Response) => {
     try {
-      const { title, description, category, companyName, address } = req.body;
+      const { title, requirementInfo, category, companyName, address } =
+        req.body;
       const files = req.files as Express.Multer.File[];
       const attachmentUrls: string[] = [];
 
-      //  Upload files to Cloudinary if they exist
       if (files && files.length > 0) {
         for (const file of files) {
-          const uploadPromise = new Promise((resolve, reject) => {
-            const uploadStream = cloudinary.uploader.upload_stream(
-              { folder: "task_attachments", resource_type: "auto" },
-              (error, result) => {
-                if (error) reject(error);
-                else resolve(result?.secure_url);
-              },
+          const url: any = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { folder: "reweb_requirements", resource_type: "auto" },
+              (error, result) =>
+                error ? reject(error) : resolve(result?.secure_url),
             );
-            uploadStream.end(file.buffer);
+            stream.end(file.buffer);
           });
-          const url = await uploadPromise;
-          attachmentUrls.push(url as string);
+          attachmentUrls.push(url);
         }
       }
 
       const user = (req as any).user;
 
-      //  Create Task in Database
       const task = await Task.create({
         title,
-        description,
         category,
         clientName: user?.name,
         clientEmail: user?.email,
         clientImage: user?.image,
+        client: user?.id,
         companyName,
         address,
-        client: user?.id,
-        attachments: attachmentUrls,
+        clientAttachments: attachmentUrls,
+        requirementInfo,
         status: "pending",
       });
 
@@ -49,6 +45,74 @@ export const TaskController = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
+
+
+
+  // 1. Collaborator marks as 'completed' (Submits files for Admin review)
+  submitTask: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { workInfo } = req.body;
+      const files = req.files as Express.Multer.File[];
+      const submissionUrls: string[] = [];
+
+      if (files && files.length > 0) {
+        for (const file of files) {
+          const url: any = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { folder: "reweb_submissions", resource_type: "auto" },
+              (error, result) => error ? reject(error) : resolve(result?.secure_url)
+            );
+            stream.end(file.buffer);
+          });
+          submissionUrls.push(url);
+        }
+      }
+
+      const task = await Task.findByIdAndUpdate(
+        id,
+        {
+          status: "completed", 
+          workInfo,
+          $push: { workAttachments: { $each: submissionUrls } },
+        },
+        { new: true }
+      );
+      res.json({ success: true, data: task });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // 2. Client gives feedback and rating, marking task as 'delivered'
+  giveFeedback: async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { rating, feedback } = req.body;
+
+    const task = await Task.findByIdAndUpdate(
+      id,
+      {
+        status: "delivered", // final stage
+        ClientRating: rating,
+        clientFeedback: feedback,
+      },
+      { new: true }
+    );
+
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    res.json({ success: true, data: task });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
+
+  
+
+
 
   // get my tasks
   getMyTasks: async (req: Request, res: Response) => {
@@ -60,79 +124,6 @@ export const TaskController = {
     res.json(tasks);
   },
 
-  // update task
-  updateTask: async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const { title, description } = req.body;
-      const files = req.files as Express.Multer.File[] | undefined;
-
-      if (!id) {
-        return res.status(400).json({
-          success: false,
-          message: "Task ID is required",
-        });
-      }
-
-      const existingTask = await Task.findById(id);
-
-      if (!existingTask) {
-        return res.status(404).json({
-          success: false,
-          message: "Task not found",
-        });
-      }
-
-      let attachmentUrls: string[] = [...(existingTask.attachments || [])];
-
-      // Upload files safely
-      if (files && files.length > 0) {
-        for (const file of files) {
-          try {
-            const url: any = await new Promise((resolve, reject) => {
-              const uploadStream = cloudinary.uploader.upload_stream(
-                { folder: "task_attachments",  resource_type: "auto", },
-                (error, result) => {
-                  if (error) return reject(error);
-                  resolve(result?.secure_url);
-                },
-              );
-
-              uploadStream.end(file.buffer);
-            });
-
-            if (url) {
-              attachmentUrls.push(url);
-            }
-          } catch (uploadError) {
-            console.error("Cloudinary upload error:", uploadError);
-          }
-        }
-      }
-
-      const updatedTask = await Task.findByIdAndUpdate(
-        id,
-        {
-          title: title || existingTask.title,
-          description: description || existingTask.description,
-          attachments: attachmentUrls,
-        },
-        { new: true },
-      ).populate("collaborator", "name email");
-
-      return res.json({
-        success: true,
-        data: updatedTask,
-      });
-    } catch (err: any) {
-      console.error("UPDATE TASK ERROR:", err); // 🔥 IMPORTANT
-      return res.status(500).json({
-        success: false,
-        message: err.message || "Internal server error",
-      });
-    }
-  },
-
   // delete task
   deleteTask: async (req: Request, res: Response) => {
     try {
@@ -142,7 +133,6 @@ export const TaskController = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-
 
   //  Admin Assigns Collaborator
   assignTask: async (req: Request, res: Response) => {
@@ -158,11 +148,8 @@ export const TaskController = {
   getUnassignedTasks: async (req: Request, res: Response) => {
     try {
       // Find tasks where collaborator is null or doesn't exist
-      const tasks = await Task.find({ 
-        $or: [
-          { collaborator: { $exists: false } },
-          { collaborator: null }
-        ]
+      const tasks = await Task.find({
+        $or: [{ collaborator: { $exists: false } }, { collaborator: null }],
       });
       res.json(tasks);
     } catch (err: any) {
@@ -190,8 +177,17 @@ export const TaskController = {
     }
   },
 
+  // get tasks assigned to collaborator
+  getCollaboratorTasks: async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const tasks = await Task.find({ collaborator: user.id }).populate(
+      "client",
+      "name email",
+    );
+    res.json(tasks);
+  },
 
-  // 3. Collaborator Accepts/Rejects
+  //  Collaborator Accepts/Rejects
   updateStatus: async (req: Request, res: Response) => {
     const { status } = req.body; // e.g., 'accepted' or 'rejected'
     const task = await Task.findByIdAndUpdate(
@@ -201,6 +197,8 @@ export const TaskController = {
     );
     res.json(task);
   },
+
+  // Task Analytics for Recharts
 
   getTaskAnalytics: async (req: Request, res: Response) => {
     try {
@@ -225,12 +223,10 @@ export const TaskController = {
                 },
               },
               { $sort: { count: -1 } },
-              { $limit: 5 } // Top 5 categories
+              { $limit: 5 }, // Top 5 categories
             ],
             // 3. Total Count
-            totalTasks: [
-              { $count: "total" }
-            ]
+            totalTasks: [{ $count: "total" }],
           },
         },
       ]);
@@ -239,13 +235,13 @@ export const TaskController = {
       const result = {
         statusStats: stats[0].byStatus.map((s: any) => ({
           name: s._id.charAt(0).toUpperCase() + s._id.slice(1),
-          value: s.count
+          value: s.count,
         })),
         categoryStats: stats[0].byCategory.map((c: any) => ({
           category: c._id || "Uncategorized",
-          count: c.count
+          count: c.count,
         })),
-        total: stats[0].totalTasks[0]?.total || 0
+        total: stats[0].totalTasks[0]?.total || 0,
       };
 
       res.json({ success: true, data: result });

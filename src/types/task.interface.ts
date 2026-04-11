@@ -1,8 +1,6 @@
 export interface ITask {
   title: string;
-  description: string;
   category: string;
-
   clientName?: string;
   clientEmail?: string;
   clientImage?: string;
@@ -20,8 +18,13 @@ export interface ITask {
     | "completed"
     | "delivered";
 
-  attachments: string[];
+  clientAttachments?: string[]; // Requirements/Initial files from Client
+  requirementInfo?: string;
 
-  submissionUrl?: string;
-  feedback?: string;
+  workAttachments?: string[];   // Completed files from Collaborator
+  workInfo?: string;
+
+  submissionText?: string;
+  clientFeedback?: string;
+  ClientRating?: number;
 }
