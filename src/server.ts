@@ -1,6 +1,31 @@
 import mongoose from 'mongoose';
 import app from './app';
 import config from './config';
+import { Server } from 'socket.io';
+import http from 'http';
+
+const server = http.createServer(app);
+
+export const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+
+io.on("connection", (socket) => {
+  const userId = socket.handshake.query.userId as string;
+
+  if (userId) {
+    socket.join(userId);
+  }
+
+  console.log("Connected:", userId);
+
+  socket.on("disconnect", () => {
+    console.log("Disconnected:", userId);
+  });
+});
+
 
 async function main() {
   try {

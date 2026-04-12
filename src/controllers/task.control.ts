@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { Task } from "../models/task.model";
 import cloudinary from "../config/cloudinary"; // Your cloudinary file
+import { sendNotification } from "../utils/notify";
+import { Notification } from "../models/notification.model";
 
 export const TaskController = {
   createTask: async (req: Request, res: Response) => {
@@ -24,8 +26,17 @@ export const TaskController = {
         }
       }
 
+      // 1. Get user from middleware
       const user = (req as any).user;
 
+      // 2. SAFETY CHECK: If user is missing, it's an auth error, not a 500
+      if (!user || !user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Authentication failed. User not found in request.",
+        });
+      }
+      //  create task with client info and attachments
       const task = await Task.create({
         title,
         category,
@@ -40,13 +51,18 @@ export const TaskController = {
         status: "pending",
       });
 
+      // Send notification to admins about new task
+      await sendNotification(
+        "admin_room",
+        `New Task: ${task.title} is pending review.`,
+        task._id.toString(),
+      );
+
       res.status(201).json({ success: true, data: task });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-
-
 
   // 1. Collaborator marks as 'completed' (Submits files for Admin review)
   submitTask: async (req: Request, res: Response) => {
@@ -61,7 +77,8 @@ export const TaskController = {
           const url: any = await new Promise((resolve, reject) => {
             const stream = cloudinary.uploader.upload_stream(
               { folder: "reweb_submissions", resource_type: "auto" },
-              (error, result) => error ? reject(error) : resolve(result?.secure_url)
+              (error, result) =>
+                error ? reject(error) : resolve(result?.secure_url),
             );
             stream.end(file.buffer);
           });
@@ -72,12 +89,26 @@ export const TaskController = {
       const task = await Task.findByIdAndUpdate(
         id,
         {
-          status: "completed", 
+          status: "completed",
           workInfo,
           $push: { workAttachments: { $each: submissionUrls } },
         },
-        { new: true }
+        { new: true },
       );
+
+      // Notify Admin and Client about submission
+      if (task) {
+        await sendNotification(
+          "admin_room",
+          `Task "${task.title}" marked as completed.`,
+          task._id.toString(),
+        );
+        await sendNotification(
+          task.client.toString(),
+          `Task "${task.title}" is ready for review!`,
+          task._id.toString(),
+        );
+      }
       res.json({ success: true, data: task });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
@@ -86,33 +117,31 @@ export const TaskController = {
 
   // 2. Client gives feedback and rating, marking task as 'delivered'
   giveFeedback: async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { rating, feedback } = req.body;
+    try {
+      const { id } = req.params;
+      const { rating, feedback } = req.body;
 
-    const task = await Task.findByIdAndUpdate(
-      id,
-      {
-        status: "delivered", // final stage
-        ClientRating: rating,
-        clientFeedback: feedback,
-      },
-      { new: true }
-    );
+      const task = await Task.findByIdAndUpdate(
+        id,
+        {
+          status: "delivered", // final stage
+          ClientRating: rating,
+          clientFeedback: feedback,
+        },
+        { new: true },
+      );
 
-    if (!task) {
-      return res.status(404).json({ success: false, message: "Task not found" });
+      if (!task) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Task not found" });
+      }
+
+      res.json({ success: true, data: task });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
     }
-
-    res.json({ success: true, data: task });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-
-  
-
-
+  },
 
   // get my tasks
   getMyTasks: async (req: Request, res: Response) => {
@@ -142,9 +171,63 @@ export const TaskController = {
       { collaborator: collaboratorId, status: "assigned" },
       { new: true },
     );
+
+    if (task) {
+      // Notify Collaborator
+      await sendNotification(
+        collaboratorId,
+        `New assignment: ${task.title}`,
+        task._id.toString(),
+      );
+      // Notify Client
+      await sendNotification(
+        task.client.toString(),
+        `Your task "${task.title}" has been assigned to a collaborator.`,
+        task._id.toString(),
+      );
+    }
     res.json(task);
   },
 
+  // get notifications
+  getNotifications: async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+
+      if (!user) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+      }
+
+      // Determine what to fetch
+      // If user is admin, they might want both their IDs and the admin_room
+      const query =
+        user.role === "admin" ? { user: "admin_room" } : { user: user.id };
+
+      const notifications = await Notification.find(query)
+        .sort({ createdAt: -1 }) // Newest first
+        .limit(20);
+
+      res.json({ success: true, data: notifications });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  markAsRead: async (req: Request, res: Response) => {
+    try {
+      await Notification.updateMany(
+        { user: (req as any).user.id, isRead: false },
+        { isRead: true },
+      );
+      res.json({ success: true, message: "Notifications marked as read" });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // get unassigned tasks (admin)
   getUnassignedTasks: async (req: Request, res: Response) => {
     try {
       // Find tasks where collaborator is null or doesn't exist
@@ -195,6 +278,20 @@ export const TaskController = {
       { status },
       { new: true },
     );
+    if (task) {
+      // Notify Client
+      await sendNotification(
+        task.client.toString(),
+        `Task "${task.title}" was ${status}.`,
+        task._id.toString(),
+      );
+      // Notify Admin
+      await sendNotification(
+        "admin_room",
+        `Collaborator ${status} task: ${task.title}`,
+        task._id.toString(),
+      );
+    }
     res.json(task);
   },
 

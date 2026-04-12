@@ -9,6 +9,8 @@ router.post('/', isAuth,upload.array('files'), TaskController.createTask);
 router.get('/my', isAuth, TaskController.getMyTasks);
 router.delete('/my/:id', isAuth, TaskController.deleteTask);
 router.post('/client/feedback/:id', isAuth, TaskController.giveFeedback);
+router.get("/notifications", isAuth, TaskController.getNotifications);
+router.patch("/notifications/read", isAuth, TaskController.markAsRead);
 router.get('/analytics', isAuth, TaskController.getTaskAnalytics);
 
 // collaborator routes
